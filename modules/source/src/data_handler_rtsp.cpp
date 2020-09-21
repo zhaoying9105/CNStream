@@ -367,6 +367,7 @@ bool RtspHandlerImpl::Open() {
   DataSource *source = dynamic_cast<DataSource *>(module_);
   param_ = source->GetSourceParam();
   this->interval_ = param_.interval_;
+  this->output_fps_ = param_.output_fps_;
 
   SetPerfManager(source->GetPerfManager(stream_id_));
   SetThreadName(module_->GetName(), handler_.GetStreamUniqueIdx());
@@ -480,7 +481,7 @@ void RtspHandlerImpl::DecodeLoop() {
   }
   if (decoder_.get()) {
     std::unique_lock<std::mutex> lk(mutex_);
-    bool ret = decoder_->Create(&stream_info_, interval_);
+    bool ret = decoder_->Create(&stream_info_, interval_, output_fps_);
     if (!ret) {
       LOG(ERROR) << "Failed to create cndecoder";
       decoder_->Destroy();

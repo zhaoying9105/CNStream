@@ -21,6 +21,7 @@
 #include "ffmpeg_decoder.hpp"
 
 #include <cnrt.h>
+#include <cstdlib>
 #include <glog/logging.h>
 #include <future>
 #include <memory>
@@ -56,7 +57,7 @@ static CNDataFormat PixelFmt2CnDataFormat(cncodecPixelFormat pformat) {
   return CNDataFormat::CN_INVALID;
 }
 
-bool MluDecoder::Create(AVStream *st, int interval) {
+bool MluDecoder::Create(AVStream *st, int interval,int output_fps) {
   if (!handler_) {
     return false;
   }
@@ -99,7 +100,8 @@ bool MluDecoder::Create(AVStream *st, int interval) {
   return Create(&info, interval);
 }
 
-bool MluDecoder::Create(VideoStreamInfo *info, int interval) {
+bool MluDecoder::Create(VideoStreamInfo *info, int interval,int output_fps) {
+  srand((unsigned int)(time(NULL)));
   // create decoder
   if (info->codec_id == AV_CODEC_ID_MJPEG) {
     if (CreateJpegDecoder(info) != true) {
@@ -111,6 +113,18 @@ bool MluDecoder::Create(VideoStreamInfo *info, int interval) {
     }
   }
   interval_ = interval;
+  output_fps_ = output_fps;
+  LOG(INFO) << "framerate.num: " <<info->framerate.num;
+  LOG(INFO) << "framerate.den: " <<info->framerate.den;
+  if(info->framerate.num > 0  &&  info->framerate.den > 0)
+  {
+    input_fps_ = (int)((float)info->framerate.num / (float)info->framerate.den);
+    LOG(INFO) << "input fps: " << input_fps_;
+  }else{
+    LOG(WARNING) << "can not get input_fps";
+  }
+  drop_frame_ = input_fps_ > 0 && interval_ == 1 && output_fps_ > 0 && output_fps_ < input_fps_;
+  LOG(INFO) << "drop_frame : " << drop_frame_;
   frame_id_ = 0;
   frame_count_ = 0;
   info_ = *info;
@@ -405,6 +419,16 @@ void MluDecoder::VideoFrameCallback(cnvideoDecOutput *output) {
                  << output->frame.height << " timestamp:" << output->pts << std::endl;
     return;
   }
+  
+  // drop frame
+  if(drop_frame_){
+    int randomNum = rand() %  input_fps_;
+    if(randomNum >= output_fps_) {
+      // LOG(INFO) << "drop a frame";
+      return; // drop current frame 
+    }
+  }   
+
   bool reused = false;
   if (frame_count_++ % interval_ == 0) {
     std::lock_guard<std::mutex> lk(instance_mutex_);
@@ -844,7 +868,8 @@ void MluDecoder::DestroyJpegDecoder() {
 
 //----------------------------------------------------------------------------
 // CPU decoder
-bool FFmpegCpuDecoder::Create(VideoStreamInfo *info, int interval) {
+bool FFmpegCpuDecoder::Create(VideoStreamInfo *info, int interval,int output_fps) {
+  srand((unsigned int)(time(NULL)));
   if (!handler_) {
     return false;
   }
@@ -854,6 +879,19 @@ bool FFmpegCpuDecoder::Create(VideoStreamInfo *info, int interval) {
     LOG(ERROR) << "Create AVStream failed!";
     return false;
   }
+
+  output_fps_ = output_fps;
+  LOG(INFO) << "framerate.num: " <<info->framerate.num;
+  LOG(INFO) << "framerate.den: " <<info->framerate.den;
+  if(info->framerate.num > 0  &&  info->framerate.den > 0)
+  {
+    input_fps_ = (int)((float)info->framerate.num / (float)info->framerate.den);
+    LOG(INFO) << "input fps: " << input_fps_;
+  }else{
+    LOG(WARNING) << "can not get input_fps";
+  }
+  drop_frame_ = input_fps_ > 0 && interval_ == 1 && output_fps_ > 0 && output_fps_ < input_fps_;
+  LOG(INFO) << "drop_frame : " << drop_frame_;
 
 #if LIBAVFORMAT_VERSION_INT >= FFMPEG_VERSION_3_1
   auto codec_param = new (std::nothrow) AVCodecParameters();
@@ -868,10 +906,10 @@ bool FFmpegCpuDecoder::Create(VideoStreamInfo *info, int interval) {
   stream_->codec->width = info->codec_width;
   stream_->codec->height = info->codec_height;
 #endif
-  return Create(stream_, interval);
+  return Create(stream_, interval,output_fps);
 }
 
-bool FFmpegCpuDecoder::Create(AVStream *st, int interval) {
+bool FFmpegCpuDecoder::Create(AVStream *st, int interval,int output_fps) {
   if (!handler_) {
     return false;
   }
@@ -992,7 +1030,14 @@ bool FFmpegCpuDecoder::Process(AVPacket *pkt, bool eos) {
     return true;
   }
   if (got_frame) {
-    ProcessFrame(av_frame_);
+    if(drop_frame_){
+      int randomNum = rand() %  input_fps_;
+      if(randomNum >= output_fps_) {
+        // LOG(INFO) << "drop a frame";
+        return true; // drop current frame 
+      }
+      ProcessFrame(av_frame_);
+    }
   }
   return true;
 }

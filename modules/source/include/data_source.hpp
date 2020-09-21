@@ -69,6 +69,7 @@ enum DecoderType { DECODER_CPU, DECODER_MLU };
 struct DataSourceParam {
   OutputType output_type_ = OUTPUT_CPU;         ///< output data to cpu/mlu
   size_t interval_ = 1;                         ///< output image every "interval" frames
+  size_t output_fps_ = 0;                         ///< output frames per second, 0 means same as input fps
   DecoderType decoder_type_ = DECODER_CPU;      ///< decoder type
   bool reuse_cndec_buf = false;                 ///< valid when DECODER_MLU used
   int device_id_ = -1;                          ///< mlu device id, -1 :disable mlu

@@ -40,6 +40,8 @@ DataSource::DataSource(const std::string &name) : SourceModule(name) {
   param_register_.Register("interval",
                            "How many frames will be discarded between two frames"
                            " which will be sent to codec.");
+  param_register_.Register("output_fps",
+                           "How many frames will be sent out per second, only works when input is rtsp, output_fps can not be set with interval at same time");
   param_register_.Register("decoder_type", "Which the input data will be decoded by. It could be cpu or mlu.");
   param_register_.Register("reuse_cndec_buf",
                            "This parameter decides whether the codec buffer that stores output data"
@@ -99,6 +101,24 @@ bool DataSource::Open(ModuleParamSet paramSet) {
       return false;
     }
     param_.interval_ = interval;
+  }
+
+  if(paramSet.find("output_fps") != paramSet.end()){
+    std::stringstream ss;
+    int output_fps;
+    ss << paramSet["output_fps"];
+    ss >> output_fps;
+
+    if(output_fps <= 0){
+      LOG(ERROR) << "output_fps : invalid";
+      return false;
+    }
+    param_.output_fps_ = output_fps;
+  }
+
+  if((paramSet.find("interval") != paramSet.end()) && (paramSet.find("output_fps") != paramSet.end())){
+    LOG(ERROR) << "[DataSource]" << " interval and output_fps should not be set at same time.";
+    return false;
   }
 
   if (paramSet.find("decoder_type") != paramSet.end()) {
@@ -175,7 +195,7 @@ bool DataSource::CheckParamSet(const ModuleParamSet &paramSet) const {
   }
 
   std::string err_msg;
-  if (!checker.IsNum({"interval", "input_buf_number", "output_buf_number"}, paramSet, err_msg, true)) {
+  if (!checker.IsNum({"interval", "output_fps", "input_buf_number", "output_buf_number"}, paramSet, err_msg, true)) {
     LOG(ERROR) << "[DataSource] " << err_msg;
     ret = false;
   }

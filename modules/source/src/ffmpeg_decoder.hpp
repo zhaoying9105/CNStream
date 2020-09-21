@@ -86,8 +86,8 @@ class Decoder {
     }
   }
   virtual ~Decoder() {}
-  virtual bool Create(AVStream *st, int interval = 1) { return false ;}
-  virtual bool Create(VideoStreamInfo *info, int interval) {return false;}
+  virtual bool Create(AVStream *st, int interval = 1, int output_fps = 0) { return false ;}
+  virtual bool Create(VideoStreamInfo *info, int interval, int output_fps = 0) {return false;}
   virtual bool Process(AVPacket *pkt, bool eos) {return false;}
   virtual bool Process(ESPacket *pkt) {return false;}
   virtual void Destroy() = 0;
@@ -96,6 +96,9 @@ class Decoder {
   IHandler *handler_;
   DataSourceParam param_;
   size_t interval_ = 1;
+  int output_fps_ = 0;
+  int input_fps_ = 0;
+  bool drop_frame_ = false;
   size_t frame_count_ = 0;
   uint64_t frame_id_ = 0;
 };
@@ -109,8 +112,8 @@ class MluDecoder : public Decoder {
     env.ConfigureForThisThread();
     // PrintPerformanceInfomation();
   }
-  bool Create(AVStream *st, int interval = 1) override;
-  bool Create(VideoStreamInfo *info, int interval) override;
+  bool Create(AVStream *st, int interval = 1, int output_fps=0) override;
+  bool Create(VideoStreamInfo *info, int interval,int output_fps = 0) override;
   void Destroy() override;
   bool Process(ESPacket *pkt) override;
   bool Process(AVPacket *pkt, bool eos) override;
@@ -191,8 +194,8 @@ class FFmpegCpuDecoder : public Decoder {
  public:
   explicit FFmpegCpuDecoder(IHandler *handler) : Decoder(handler) {}
   ~FFmpegCpuDecoder() {}
-  bool Create(VideoStreamInfo *info, int interval) override;
-  bool Create(AVStream *st, int interval = 1) override;
+  bool Create(VideoStreamInfo *info, int interval, int output_fps=0) override;
+  bool Create(AVStream *st, int interval = 1,int output_fps = 0) override;
   void Destroy() override;
   bool Process(ESPacket *pkt) override;
   bool Process(AVPacket *pkt, bool eos) override;

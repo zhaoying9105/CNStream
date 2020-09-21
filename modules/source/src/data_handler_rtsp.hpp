@@ -65,6 +65,7 @@ class RtspHandlerImpl : public IHandler {
   std::string stream_id_;
   DataSourceParam param_;
   size_t interval_ = 1;
+  int output_fps_ = 0;
   bool use_ffmpeg_ = false;
   int reconnect_ = 0;
 
